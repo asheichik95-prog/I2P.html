@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AI Sketch</title>
+<script src="https://telegram.org"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;font-family:sans-serif}
+body{background:#121218;color:#fff;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:12px}
+.header,.tools,.styles-grid,.magic-btn,.canvas-container{width:100%;max-width:400px}
+.header{display:flex;justify-content:space-between;align-items:center;background:#1e1e2a;padding:10px 16px;border-radius:16px;margin-bottom:12px;border:1px solid #2e2e3e}
+.title{font-weight:800;font-size:16px;background:linear-gradient(90deg,#ff7eb3,#7afcff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.energy-box{background:#282838;padding:6px 12px;border-radius:12px;font-weight:700;font-size:14px;color:#ffd700;cursor:pointer}
+.canvas-container{aspect-ratio:1/1;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);margin-bottom:12px}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+.tools{display:flex;justify-content:space-between;align-items:center;background:#1e1e2a;padding:10px 14px;border-radius:16px;margin-bottom:12px}
+.colors{display:flex;gap:8px}
+.color-btn{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.color-btn.active{border-color:#fff;transform:scale(1.15)}
+.clear-btn{background:#2e2e3e;color:#ff6b6b;border:none;padding:8px 12px;border-radius:10px;font-weight:600;font-size:13px}
+.styles-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+.style-btn{background:#1e1e2a;border:1px solid #2e2e3e;color:#ccc;padding:10px;border-radius:12px;font-size:13px;font-weight:600;text-align:center}
+.style-btn.active{background:#2b2b40;border-color:#7afcff;color:#fff}
+.magic-btn{background:linear-gradient(135deg,#6e45e2,#88d3ce);color:#121218;border:none;padding:16px;border-radius:16px;font-size:16px;font-weight:800}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);justify-content:center;align-items:center;padding:20px;z-index:100}
+.modal-content{background:#1e1e2a;padding:20px;border-radius:20px;width:100%;max-width:360px;text-align:center;border:1px solid #3e3e52}
+.result-img{width:100%;border-radius:14px;margin:14px 0;background:#282838;min-height:250px;object-fit:cover}
+.modal-btn{width:100%;padding:12px;border-radius:12px;border:none;font-weight:700;font-size:14px;margin-top:8px}
+.btn-primary{background:#7afcff;color:#121218}
+.btn-secondary{background:#2e2e3e;color:#fff}
+.loader{border:4px solid #2e2e3e;border-top:4px solid #7afcff;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:30px auto}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">🎨 AI Sketch</div>
+  <div class="energy-box" onclick="openAdModal()">⚡ <span id="energy-count">30</span> / 30 (+10)</div>
+</div>
+<div class="canvas-container"><canvas id="canvas"></canvas></div>
+<div class="tools">
+  <div class="colors">
+    <div class="color-btn active" style="background:#000" onclick="setColor('#000',this)"></div>
+    <div class="color-btn" style="background:#ff3b30" onclick="setColor('#ff3b30',this)"></div>
+    <div class="color-btn" style="background:#007aff" onclick="setColor('#007aff',this)"></div>
+    <div class="color-btn" style="background:#34c759" onclick="setColor('#34c759',this)"></div>
+    <div class="color-btn" style="background:#ffcc00" onclick="setColor('#ffcc00',this)"></div>
+  </div>
+  <button class="clear-btn" onclick="clearCanvas()">Очистить</button>
+</div>
+<div class="styles-grid">
+  <div class="style-btn active" onclick="setStyle('Мультик 3D',this)">🧸 Мультик 3D</div>
+  <div class="style-btn" onclick="setStyle('Аниме',this)">⛩️ Аниме</div>
+  <div class="style-btn" onclick="setStyle('Майнкрафт',this)">🟩 Майнкрафт</div>
+  <div class="style-btn" onclick="setStyle('Киберпанк',this)">🤖 Киберпанк</div>
+</div>
+<button class="magic-btn" onclick="generateArt()">✨ Оживить рисунок (-10 ⚡)</button>
+
+<div class="modal" id="result-modal">
+  <div class="modal-content">
+    <h3 id="modal-title">Нейросеть рисует...</h3>
+    <div id="loader" class="loader"></div>
+    <img id="result-img" class="result-img" style="display:none" src="" alt="Результат">
+    <p id="modal-desc" style="font-size:13px;color:#aaa;margin-bottom:10px">Превращаем набросок в шедевр</p>
+    <button id="share-btn" class="modal-btn btn-primary" style="display:none" onclick="shareResult()">📤 Поделиться в чат</button>
+    <button class="modal-btn btn-secondary" onclick="closeModal('result-modal')">Нарисовать еще</button>
+  </div>
+</div>
+
+<div class="modal" id="ad-modal">
+  <div class="modal-content">
+    <h3>⚡ Закончилась энергия?</h3>
+    <p style="font-size:13px;color:#ccc;margin:12px 0">Посмотри короткий ролик (демо) и получи +10 энергии!</p>
+    <div id="ad-loader" class="loader" style="display:none"></div>
+    <button id="watch-ad-btn" class="modal-btn btn-primary" onclick="watchDemoAd()">▶️ Смотреть ролик (+10 ⚡)</button>
+    <button class="modal-btn btn-secondary" onclick="closeModal('ad-modal')">Закрыть</button>
+  </div>
+</div>
+
+<script>
+const tg=window.Telegram.WebApp;tg.expand();
+const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
+let painting=false,currentColor='#000',currentStyle='Мультик 3D',energy=30;
+
+function resizeCanvas(){
+  const r=canvas.parentElement.getBoundingClientRect();
+  canvas.width=r.width*2;canvas.height=r.height*2;ctx.scale(2,2);
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,r.width,r.height);
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=6;
+}
+resizeCanvas();
+
+function getPos(e){
+  const r=canvas.getBoundingClientRect();
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  return{x:cx-r.left,y:cy-r.top};
+}
+function startPos(e){painting=true;draw(e)}
+function endPos(){painting=false;ctx.beginPath()}
+function draw(e){
+  if(!painting)return;e.preventDefault();
+  const p=getPos(e);ctx.strokeStyle=currentColor;
+  ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y);
+}
+canvas.addEventListener('mousedown',startPos);canvas.addEventListener('mouseup',endPos);canvas.addEventListener('mousemove',draw);
+canvas.addEventListener('touchstart',startPos,{passive:false});canvas.addEventListener('touchend',endPos);canvas.addEventListener('touchmove',draw,{passive:false});
+
+function setColor(c,el){currentColor=c;document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active')}
+function setStyle(s,el){currentStyle=s;document.querySelectorAll('.style-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active')}
+function clearCanvas(){const r=canvas.parentElement.getBoundingClientRect();ctx.fillStyle='#fff';ctx.fillRect(0,0,r.width,r.height)}
+function updateUI(){document.getElementById('energy-count').innerText=energy}
+
+function generateArt(){
+  if(energy<10){openAdModal();return}
+  energy-=10;updateUI();
+  document.getElementById('result-modal').style.display='flex';
+  document.getElementById('modal-title').innerText=`Стиль: ${currentStyle}...`;
+  document.getElementById('loader').style.display='block';
+  document.getElementById('result-img').style.display='none';
+  document.getElementById('share-btn').style.display='none';
+  setTimeout(()=>{
+    document.getElementById('loader').style.display='none';
+    document.getElementById('modal-title').innerText='✨ Готово!';
+    const img=document.getElementById('result-img');
+    img.src=canvas.toDataURL('image/png');
+    img.style.filter=currentStyle==='Киберпанк'?'invert(1) hue-rotate(180deg) contrast(1.5)':currentStyle==='Аниме'?'saturate(2) contrast(1.2)':currentStyle==='Майнкрафт'?'contrast(1.8)':'drop-shadow(0 0 10px #7afcff)';
+    img.style.display='block';
+    document.getElementById('share-btn').style.display='block';
+  },2000);
+}
+function openAdModal(){document.getElementById('ad-modal').style.display='flex';document.getElementById('ad-loader').style.display='none';document.getElementById('watch-ad-btn').style.display='block'}
+function watchDemoAd(){document.getElementById('watch-ad-btn').style.display='none';document.getElementById('ad-loader').style.display='block';setTimeout(()=>{energy+=10;updateUI();closeModal('ad-modal')},1500)}
+function shareResult(){tg.switchInlineQuery('Смотри, что я нарисовал в AI Sketch!')}
+function closeModal(id){document.getElementById(id).style.display='none'}
+</script>
+</body>
+    </html>
+  
